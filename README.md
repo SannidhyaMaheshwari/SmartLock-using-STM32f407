@@ -41,7 +41,7 @@ An end-to-end IoT-based smart lock using STM32 (bare-metal), ESP8266, FastAPI, a
 ## Demo Links
 - Full Demo: https://youtu.be/MyqWPbqNmGM  
 - Temp Password Demo: https://youtu.be/OYHEDT1h9gI  
-- Files: https://drive.google.com/drive/folders/1vVR_ae83_F515ukGWO3NTlrHTwveCTR4
+
 
 ## Setup
 - STM32: Flash code via Keil, connect servo/keypad/LEDs
