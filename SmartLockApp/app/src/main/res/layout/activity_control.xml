@@ -1,0 +1,58 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp"
+    android:background="#FDFDFD">
+
+    <TextView
+        android:text="🔧 Control Lock"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="#222222"
+        android:layout_marginBottom="24dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+
+    <Button
+        android:id="@+id/lockBtn"
+        android:text="🔒 LOCK"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/rounded_button"
+        android:textColor="#FFFFFF"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/unlockBtn"
+        android:text="🔓 UNLOCK"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/rounded_button"
+        android:textColor="#FFFFFF"
+        android:padding="12dp"/>
+
+    <Button
+        android:id="@+id/viewLogsBtn"
+        android:text="📋 View Logs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/rounded_button"
+        android:textColor="#FFFFFF"
+        android:layout_marginTop="24dp"
+        android:padding="12dp"/>
+    <Button
+        android:id="@+id/tempPasswordBtn"
+        android:text="🔐 Set Temporary Password"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:padding="12dp"
+        android:background="@drawable/rounded_button"
+        android:textColor="#FFFFFF"/>
+
+
+</LinearLayout>

@@ -1,0 +1,171 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <ArduinoJson.h>
+#include <SoftwareSerial.h>
+
+SoftwareSerial stmSerial(D5, D6); // D5 = RX, D6 = TX (connect to STM32 USART2 TX/RX)
+#define LED_PIN D4
+
+const char* WIFI_SSID = "Hotspot";       // Replace with your SSID
+const char* WIFI_PASS = "nonsense";      // Replace with your password
+
+String serverHost = "http://192.168.123.4:8000";  // Replace with your FastAPI IP
+
+int currentState = 0;              // 0 = locked, 1 = unlocked
+String lastTempPassword = "";      // to avoid resending same temp password
+
+void setup() {
+  Serial.begin(9600);
+  stmSerial.begin(9600);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  // Connect to WiFi
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi Connected. IP: " + WiFi.localIP().toString());
+
+  // Get initial lock status
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    WiFiClient client;
+    http.begin(client, serverHost + "/lock_status");
+    int code = http.GET();
+    if (code == 200) {
+      String payload = http.getString();
+      int idx = payload.indexOf(':');
+      if (idx != -1) {
+        char stateChar = payload.charAt(idx + 1);
+        if (stateChar == '0' || stateChar == '1') {
+          currentState = stateChar - '0';
+        }
+      }
+    }
+    http.end();
+  }
+
+  Serial.println("ESP Ready");
+}
+
+void loop() {
+  // 1. Check STM32 → ESP messages
+  if (stmSerial.available()) {
+    char c = stmSerial.read();
+    Serial.print("[STM32 → ESP] Received: ");
+    Serial.println(c);
+
+    int newState = (c == 'U') ? 1 : (c == 'L') ? 0 : -1;
+
+    if (newState != -1 && newState != currentState) {
+      currentState = newState;
+
+      if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+        WiFiClient client;
+        String url = (currentState == 1) ? (serverHost + "/unlock") : (serverHost + "/lock");
+        http.begin(client, url);
+        int code = http.GET();
+        if (code == 200) {
+          Serial.println("Server updated via: " + url);
+        } else {
+          Serial.println("Failed to update server. Code: " + String(code));
+        }
+        http.end();
+      }
+    }
+
+    stmSerial.write('A'); // Acknowledge STM32
+    Serial.println("[ESP → STM32] Sent: A");
+  }
+
+  // 2. Poll server for lock state
+  static unsigned long lastStatusPoll = 0;
+  if (millis() - lastStatusPoll > 1000) {
+    lastStatusPoll = millis();
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      WiFiClient client;
+      http.begin(client, serverHost + "/lock_status");
+      int code = http.GET();
+      if (code == 200) {
+        String payload = http.getString();
+        int idx = payload.indexOf(':');
+        if (idx != -1) {
+          char stateChar = payload.charAt(idx + 1);
+          if (stateChar == '0' || stateChar == '1') {
+            int serverState = stateChar - '0';
+            if (serverState != currentState) {
+              char cmd = (serverState == 1) ? 'U' : 'L';
+              stmSerial.write(cmd);
+              Serial.println("[ESP → STM32] Sent: " + String(cmd));
+
+              // Wait for ACK
+              unsigned long start = millis();
+              while (millis() - start < 1000) {
+                if (stmSerial.available()) {
+                  char ack = stmSerial.read();
+                  if (ack == 'A') {
+                    Serial.println("ACK received from STM32");
+                    currentState = serverState;
+                    break;
+                  }
+                }
+                delay(1);
+              }
+            }
+          }
+        }
+      }
+      http.end();
+    }
+  }
+
+  // 3. Poll temporary password
+  static unsigned long lastTempPoll = 0;
+  if (millis() - lastTempPoll > 5000) {
+    lastTempPoll = millis();
+
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      WiFiClient client;
+      http.begin(client, serverHost + "/temp_password");
+      int code = http.GET();
+      if (code == 200) {
+        String payload = http.getString();
+
+        DynamicJsonDocument doc(128);
+        DeserializationError err = deserializeJson(doc, payload);
+        if (!err) {
+          String temp = doc["temp_password"] | "";
+          int uses = doc["usage_left"] | 0;
+
+          if (temp.length() == 4 && temp != lastTempPassword && uses > 0) {
+            String toSend = "T" + temp + "\n";
+            stmSerial.print(toSend);
+            lastTempPassword = temp;
+            Serial.println("[ESP → STM32] Sent Temp Password: " + toSend);
+            blinkLED(2);
+          }
+        } else {
+          Serial.println("Failed to parse /temp_password");
+        }
+      }
+      http.end();
+    }
+  }
+
+  delay(10);
+}
+
+void blinkLED(int times) {
+  for (int i = 0; i < times; i++) {
+    digitalWrite(LED_PIN, HIGH);
+    delay(100);
+    digitalWrite(LED_PIN, LOW);
+    delay(100);
+  }
+}
